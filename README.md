@@ -10,8 +10,7 @@ FastAPI + MongoDB (PyMongo). All application code is in `app/main.py`.
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-# Set MONGO_URI and MONGO_DB in .env. Environment variables take precedence.
+# Create a local .env file first; see the MongoDB Atlas configuration below.
 python -m uvicorn app.main:app --port 8000
 ```
 
@@ -21,12 +20,43 @@ python -m uvicorn app.main:app --port 8000
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
-if [ ! -f .env ]; then cp .env.example .env; fi
-# Set MONGO_URI and MONGO_DB in .env. Environment variables take precedence.
+# Create a local .env file first; see the MongoDB Atlas configuration below.
 python -m uvicorn app.main:app --port 8000
 ```
 
 Needs MongoDB 6.0 or newer (aggregation uses `$setWindowFields`, `$dateAdd`, `$unionWith`). Indexes are created at startup and the app needs no manual steps. Do not commit `.env`; it is already covered by `.gitignore`.
+
+## MongoDB Atlas configuration
+
+Create a local `.env` file in the repository root. It is intentionally ignored by Git and must never be committed.
+
+```env
+MONGO_URI=mongodb+srv://<username>:<password>@<cluster-host>/?retryWrites=true&w=majority
+MONGO_DB=attendance_db
+```
+
+In MongoDB Atlas, allow your current IP address under **Network Access** and ensure the database user has read/write access. The app creates the `employees` and `attendance_logs` collections after data is added. The configured local Atlas connection was verified with `GET /health`; its secret connection string is not stored in this repository.
+
+## Features
+
+- Create and list employees.
+- Record punch-in and punch-out events with IST, overnight-shift, late-arrival, overtime, half-day, and work-hour rules.
+- Regularize attendance while preserving an append-only audit history.
+- Produce employee monthly summaries, department summaries, late-comer rankings, and daily department trends with MongoDB aggregation pipelines.
+- Create indexes automatically for data integrity and query performance.
+
+## API overview
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /health` | Confirms MongoDB is reachable. |
+| `POST` / `GET /employees` | Creates or lists employees. |
+| `POST /attendance/punch-in` | Starts an attendance record. |
+| `POST /attendance/punch-out` | Completes the latest open record. |
+| `GET /attendance` | Lists filtered and paginated attendance records. |
+| `PATCH /attendance/{emp_code}/{date}` | Corrects a record and appends audit history. |
+| `GET /analytics/...` | Returns employee, department, leaderboard, and trend analytics. |
+| `GET /admin/explain/{endpoint}` | Shows MongoDB query-plan information. |
 
 If an existing `.venv` reports that its Python executable cannot be found, remove that stale environment and recreate it with an installed Python 3.11+ interpreter:
 
